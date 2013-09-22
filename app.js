@@ -1,38 +1,48 @@
-var express = require('express'),
-    sio = require('socket.io'),
-    http = require('http'),
-    app = express();
+var express = require('express')
+  , app = express()
+  , http = require('http')
+  , server = http.createServer(app)
+  , io = require('socket.io').listen(server);
 
-var server = http.createServer(app);
+server.listen(8080);
 
-app.configure(function () {
-  app.use(express.static(__dirname + '/public'));
-  app.use(app.router);
-});
-
+// routing
 app.get('/', function (req, res) {
-  res.send('hello');
+  res.sendfile(__dirname + '/index.html');
 });
 
-var io = sio.listen(server);
-
-server.listen(8124);
+// usernames which are currently connected to the chat
+var usernames = {};
 
 io.sockets.on('connection', function (socket) {
 
-   socket.on('addme',function(username) {
-      socket.username = username;
-      socket.emit('chat', 'SERVER', 'You have connected');
-      socket.broadcast.emit('chat', 'SERVER', username + ' is on deck');
-   });
+  // when the client emits 'sendchat', this listens and executes
+  socket.on('sendchat', function (data) {
+    // we tell the client to execute 'updatechat' with 2 parameters
+    io.sockets.emit('updatechat', socket.username, data);
+  });
 
-   socket.on('sendchat', function(data) {
-      io.sockets.emit('chat', socket.username, data);
-   });
+  // when the client emits 'adduser', this listens and executes
+  socket.on('adduser', function(username){
+    // we store the username in the socket session for this client
+    socket.username = username;
+    // add the client's username to the global list
+    usernames[username] = username;
+    // echo to client they've connected
+    socket.emit('updatechat', 'SERVER', 'you have connected');
+    // echo globally (all clients) that a person has connected
+    socket.broadcast.emit('updatechat', 'SERVER', username + ' has connected');
+    // update the list of users in chat, client-side
+    io.sockets.emit('updateusers', usernames);
+  });
 
-   socket.on('disconnect', function() {
-      io.sockets.emit('chat', 'SERVER', socket.username + ' has left the building');
-   });
-
+  // when the user disconnects.. perform this
+  socket.on('disconnect', function(){
+    // remove the username from global usernames list
+    delete usernames[socket.username];
+    // update list of users in chat, client-side
+    io.sockets.emit('updateusers', usernames);
+    // echo globally that this client has left
+    socket.broadcast.emit('updatechat', 'SERVER', socket.username + ' has disconnected');
+  });
 });
-
