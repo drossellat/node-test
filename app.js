@@ -8,6 +8,9 @@ var express = require('express')
 server.listen(process.env.PORT || 8080);
 console.log(process.env.PORT);
 
+//setting transport protocol
+io.set('transports', ['xhr-polling']);
+  
 // routing
 app.get('/', function (req, res) {
   res.sendfile(__dirname + '/index.html');
